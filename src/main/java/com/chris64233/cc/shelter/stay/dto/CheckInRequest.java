@@ -1,0 +1,10 @@
+package com.chris64233.cc.shelter.stay.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record CheckInRequest(
+        @NotBlank String idempotencyKey,
+        @NotBlank String householdNumber,
+        @NotNull Long shelterId) {
+}
