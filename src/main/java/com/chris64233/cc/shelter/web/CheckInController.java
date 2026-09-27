@@ -2,6 +2,7 @@ package com.chris64233.cc.shelter.web;
 
 import com.chris64233.cc.shelter.service.CheckInService;
 import com.chris64233.cc.shelter.web.dto.CheckInRequest;
+import com.chris64233.cc.shelter.web.dto.CheckOutRequest;
 import com.chris64233.cc.shelter.web.dto.IdempotentResponse;
 import com.chris64233.cc.shelter.web.dto.TransferRequest;
 import jakarta.validation.Valid;
@@ -30,6 +31,11 @@ public class CheckInController {
     @PostMapping("/transfers")
     public ResponseEntity<String> transfer(@Valid @RequestBody TransferRequest request) {
         return toResponse(checkInService.transfer(request));
+    }
+
+    @PostMapping("/check-outs")
+    public ResponseEntity<String> checkOut(@Valid @RequestBody CheckOutRequest request) {
+        return toResponse(checkInService.checkOut(request));
     }
 
     private ResponseEntity<String> toResponse(IdempotentResponse response) {

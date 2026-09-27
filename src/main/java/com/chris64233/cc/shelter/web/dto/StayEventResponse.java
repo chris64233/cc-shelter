@@ -12,7 +12,7 @@ public record StayEventResponse(Long eventId,
                                 Integer fromRoomNumber,
                                 Long toShelterId,
                                 Long toRoomId,
-                                int toRoomNumber,
+                                Integer toRoomNumber,
                                 int memberCount,
                                 Instant occurredAt) {
 

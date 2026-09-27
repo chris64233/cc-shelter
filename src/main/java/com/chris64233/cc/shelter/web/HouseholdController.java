@@ -3,6 +3,7 @@ package com.chris64233.cc.shelter.web;
 import com.chris64233.cc.shelter.domain.Household;
 import com.chris64233.cc.shelter.service.QueryService;
 import com.chris64233.cc.shelter.service.RegistrationService;
+import com.chris64233.cc.shelter.web.dto.MemberResponse;
 import com.chris64233.cc.shelter.web.dto.RegisterHouseholdRequest;
 import com.chris64233.cc.shelter.web.dto.StayEventResponse;
 import com.chris64233.cc.shelter.web.dto.StayResponse;
@@ -46,5 +47,10 @@ public class HouseholdController {
     @GetMapping("/{householdNo}/events")
     public List<StayEventResponse> events(@PathVariable String householdNo) {
         return queryService.eventsOf(householdNo);
+    }
+
+    @GetMapping("/{householdNo}/members")
+    public List<MemberResponse> members(@PathVariable String householdNo) {
+        return queryService.membersOf(householdNo);
     }
 }

@@ -182,4 +182,107 @@ class ApiWebTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("HOUSEHOLD_NOT_FOUND"));
     }
+
+    @Test
+    void reunificationFlowOverHttp() throws Exception {
+        long shelter = createShelter();
+        addRoom(shelter, 1, 4, false);
+        addRoom(shelter, 2, 1, false);
+        String familyNo = registerHousehold(2, false);
+        String identityNo = unique("lost");
+
+        // 正式家庭先整体入住
+        checkIn(unique("k"), familyNo, shelter);
+
+        // 走散成员以临时家庭身份入住
+        mockMvc.perform(post("/api/temporary-check-ins")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(("{\"idempotencyKey\":\"%s\",\"identityNo\":\"%s\",\"age\":12,"
+                                        + "\"declaredHouseholdNo\":\"%s\",\"shelterId\":%d}")
+                                .formatted(unique("k"), identityNo, familyNo, shelter)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.householdNo").value("TMP-" + identityNo))
+                .andExpect(jsonPath("$.memberCount").value(1));
+
+        // 临时家庭成员初始为未核验
+        mockMvc.perform(get("/api/households/{no}/members", "TMP-" + identityNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].verificationStatus").value("UNVERIFIED"))
+                .andExpect(jsonPath("$[0].declaredHouseholdNo").value(familyNo));
+
+        // 未核验不能并入正式家庭
+        mockMvc.perform(post("/api/merges")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(("{\"idempotencyKey\":\"%s\",\"targetHouseholdNo\":\"%s\","
+                                        + "\"temporaryHouseholdNos\":[\"TMP-%s\"]}")
+                                .formatted(unique("k"), familyNo, identityNo)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("UNVERIFIED_MEMBER"));
+
+        // 身份核验（幂等）
+        String verifyKey = unique("k");
+        String verifyBody = "{\"idempotencyKey\":\"%s\",\"identityNo\":\"%s\"}"
+                .formatted(verifyKey, identityNo);
+        MvcResult verified = mockMvc.perform(post("/api/identity-verifications")
+                        .contentType(MediaType.APPLICATION_JSON).content(verifyBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.result").value("VERIFIED"))
+                .andReturn();
+        mockMvc.perform(post("/api/identity-verifications")
+                        .contentType(MediaType.APPLICATION_JSON).content(verifyBody))
+                .andExpect(status().isCreated())
+                .andExpect(result ->
+                        assertEquals(verified.getResponse().getContentAsString(),
+                                result.getResponse().getContentAsString()));
+
+        // 合并（幂等）
+        String mergeKey = unique("k");
+        String mergeBody = ("{\"idempotencyKey\":\"%s\",\"targetHouseholdNo\":\"%s\","
+                + "\"temporaryHouseholdNos\":[\"TMP-%s\"]}").formatted(mergeKey, familyNo, identityNo);
+        MvcResult merged = mockMvc.perform(post("/api/merges")
+                        .contentType(MediaType.APPLICATION_JSON).content(mergeBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.memberCount").value(3))
+                .andExpect(jsonPath("$.roomChanged").value(false))
+                .andReturn();
+        mockMvc.perform(post("/api/merges")
+                        .contentType(MediaType.APPLICATION_JSON).content(mergeBody))
+                .andExpect(status().isCreated())
+                .andExpect(result ->
+                        assertEquals(merged.getResponse().getContentAsString(),
+                                result.getResponse().getContentAsString()));
+
+        // 家庭关系变化：成员进入正式家庭，临时家庭清空
+        mockMvc.perform(get("/api/households/{no}/members", familyNo))
+                .andExpect(jsonPath("$.length()").value(3));
+        mockMvc.perform(get("/api/households/{no}/members", "TMP-" + identityNo))
+                .andExpect(jsonPath("$.length()").value(0));
+
+        // 完整房间迁移链：临时家庭 CHECK_IN + MERGE，正式家庭 CHECK_IN + MERGE
+        mockMvc.perform(get("/api/households/{no}/events", "TMP-" + identityNo))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].type").value("CHECK_IN"))
+                .andExpect(jsonPath("$[1].type").value("MERGE"));
+        mockMvc.perform(get("/api/households/{no}/events", familyNo))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].type").value("MERGE"))
+                .andExpect(jsonPath("$[1].memberCount").value(3));
+
+        // 身份确认记录可查
+        mockMvc.perform(get("/api/members/{id}/verifications", identityNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].result").value("VERIFIED"));
+
+        // 退住释放全部床位
+        long stayId = jsonLong(merged, "stayId");
+        mockMvc.perform(post("/api/check-outs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idempotencyKey\":\"%s\",\"householdNo\":\"%s\",\"expectedStayId\":%d}"
+                                .formatted(unique("k"), familyNo, stayId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ENDED"));
+        mockMvc.perform(get("/api/shelters/{id}/rooms", shelter))
+                .andExpect(jsonPath("$[0].occupied").value(0));
+    }
 }

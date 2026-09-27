@@ -62,6 +62,11 @@ public class Stay {
         this.endedAt = Instant.now();
     }
 
+    /** 合并时新成员并入当前房间，原地增加在住人数 */
+    public void addMembers(int count) {
+        this.memberCount += count;
+    }
+
     public Long getId() {
         return id;
     }

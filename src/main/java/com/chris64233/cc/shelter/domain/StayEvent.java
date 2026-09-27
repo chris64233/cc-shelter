@@ -40,14 +40,15 @@ public class StayEvent {
     @Column(updatable = false)
     private Integer fromRoomNumber;
 
-    @Column(nullable = false, updatable = false)
+    /** 退住事件没有去向，to* 字段允许为空 */
+    @Column(updatable = false)
     private Long toShelterId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(updatable = false)
     private Long toRoomId;
 
-    @Column(nullable = false, updatable = false)
-    private int toRoomNumber;
+    @Column(updatable = false)
+    private Integer toRoomNumber;
 
     @Column(nullable = false, updatable = false)
     private int memberCount;
@@ -83,6 +84,42 @@ public class StayEvent {
         event.toRoomId = newStay.getRoom().getId();
         event.toRoomNumber = newStay.getRoom().getRoomNumber();
         event.memberCount = newStay.getMemberCount();
+        event.occurredAt = Instant.now();
+        return event;
+    }
+
+    /**
+     * 合并事件：对目标家庭和每个被并入的临时家庭各追加一条，
+     * from 为各自原房间（目标家庭此前无入住时为空），to 为合并后全家所在房间。
+     */
+    public static StayEvent merge(Long stayId, String householdNo, Stay fromStay,
+                                  Room toRoom, Shelter toShelter, int memberCount) {
+        StayEvent event = new StayEvent();
+        event.stayId = stayId;
+        event.householdNo = householdNo;
+        event.type = StayEventType.MERGE;
+        if (fromStay != null) {
+            event.fromShelterId = fromStay.getShelter().getId();
+            event.fromRoomId = fromStay.getRoom().getId();
+            event.fromRoomNumber = fromStay.getRoom().getRoomNumber();
+        }
+        event.toShelterId = toShelter.getId();
+        event.toRoomId = toRoom.getId();
+        event.toRoomNumber = toRoom.getRoomNumber();
+        event.memberCount = memberCount;
+        event.occurredAt = Instant.now();
+        return event;
+    }
+
+    public static StayEvent checkOut(Stay stay) {
+        StayEvent event = new StayEvent();
+        event.stayId = stay.getId();
+        event.householdNo = stay.getHousehold().getHouseholdNo();
+        event.type = StayEventType.CHECK_OUT;
+        event.fromShelterId = stay.getShelter().getId();
+        event.fromRoomId = stay.getRoom().getId();
+        event.fromRoomNumber = stay.getRoom().getRoomNumber();
+        event.memberCount = stay.getMemberCount();
         event.occurredAt = Instant.now();
         return event;
     }
@@ -123,7 +160,7 @@ public class StayEvent {
         return toRoomId;
     }
 
-    public int getToRoomNumber() {
+    public Integer getToRoomNumber() {
         return toRoomNumber;
     }
 
