@@ -3,7 +3,10 @@ package com.chris64233.cc.shelter.web;
 import com.chris64233.cc.shelter.domain.Household;
 import com.chris64233.cc.shelter.service.QueryService;
 import com.chris64233.cc.shelter.service.RegistrationService;
+import com.chris64233.cc.shelter.web.dto.HouseholdResponse;
+import com.chris64233.cc.shelter.web.dto.MemberEventResponse;
 import com.chris64233.cc.shelter.web.dto.RegisterHouseholdRequest;
+import com.chris64233.cc.shelter.web.dto.RegisterTemporaryHouseholdRequest;
 import com.chris64233.cc.shelter.web.dto.StayEventResponse;
 import com.chris64233.cc.shelter.web.dto.StayResponse;
 import jakarta.validation.Valid;
@@ -38,6 +41,23 @@ public class HouseholdController {
                         "memberCount", household.getMembers().size()));
     }
 
+    @PostMapping("/temporary")
+    public ResponseEntity<Map<String, Object>> registerTemporary(
+            @Valid @RequestBody RegisterTemporaryHouseholdRequest request) {
+        Household household = registrationService.registerTemporaryHousehold(request);
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("householdNo", household.getHouseholdNo());
+        body.put("type", household.getType().name());
+        body.put("claimedOriginalHouseholdNo", household.getClaimedOriginalHouseholdNo());
+        body.put("memberCount", household.getMembers().size());
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @GetMapping("/{householdNo}")
+    public HouseholdResponse household(@PathVariable String householdNo) {
+        return queryService.household(householdNo);
+    }
+
     @GetMapping("/{householdNo}/stay")
     public StayResponse currentStay(@PathVariable String householdNo) {
         return queryService.currentStay(householdNo);
@@ -46,5 +66,10 @@ public class HouseholdController {
     @GetMapping("/{householdNo}/events")
     public List<StayEventResponse> events(@PathVariable String householdNo) {
         return queryService.eventsOf(householdNo);
+    }
+
+    @GetMapping("/members/{identityNo}/events")
+    public List<MemberEventResponse> memberEvents(@PathVariable String identityNo) {
+        return queryService.memberEventsOf(identityNo);
     }
 }
