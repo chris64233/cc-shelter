@@ -89,6 +89,8 @@ public class MergeService {
         Household target = byNo(locked, request.targetHouseholdNo())
                 .orElseThrow(() -> ApiException.notFound("HOUSEHOLD_NOT_FOUND",
                         "正式家庭不存在: " + request.targetHouseholdNo()));
+        // 注意：活动转移期间不拦截团聚创建——合并确认与到达确认并发时，
+        // 由确认事务内的期望入住/冻结清单重核决定胜负（见 TransferService）
         Stay targetStay = validateTarget(target);
         validateTemporaries(locked, tempNos, target);
 

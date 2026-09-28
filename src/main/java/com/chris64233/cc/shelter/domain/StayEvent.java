@@ -57,6 +57,10 @@ public class StayEvent {
     @Column(updatable = false)
     private String mergeNo;
 
+    /** 关联的转移业务号（三阶段家庭转移），即时转移与其它事件为 null */
+    @Column(updatable = false)
+    private String transferNo;
+
     @Column(nullable = false, updatable = false)
     private Instant occurredAt;
 
@@ -73,6 +77,13 @@ public class StayEvent {
         StayEvent event = base(newStay, StayEventType.TRANSFER);
         fillFrom(event, previousStay);
         fillTo(event, newStay);
+        return event;
+    }
+
+    /** 三阶段家庭转移到达确认产生的转移事件，带转移业务号 */
+    public static StayEvent transfer(Stay newStay, Stay previousStay, String transferNo) {
+        StayEvent event = transfer(newStay, previousStay);
+        event.transferNo = transferNo;
         return event;
     }
 
@@ -170,6 +181,10 @@ public class StayEvent {
 
     public String getMergeNo() {
         return mergeNo;
+    }
+
+    public String getTransferNo() {
+        return transferNo;
     }
 
     public Instant getOccurredAt() {

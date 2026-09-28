@@ -12,6 +12,7 @@ import com.chris64233.cc.shelter.repo.HouseholdRepository;
 import com.chris64233.cc.shelter.repo.ShelterRepository;
 import com.chris64233.cc.shelter.repo.StayEventRepository;
 import com.chris64233.cc.shelter.repo.StayRepository;
+import com.chris64233.cc.shelter.repo.TransferActivitySlotRepository;
 import com.chris64233.cc.shelter.web.dto.CheckInRequest;
 import com.chris64233.cc.shelter.web.dto.IdempotentResponse;
 import com.chris64233.cc.shelter.web.dto.StayResponse;
@@ -31,16 +32,19 @@ public class CheckInService {
     private final StayEventRepository events;
     private final RoomAllocator roomAllocator;
     private final IdempotencyStore idempotency;
+    private final TransferActivitySlotRepository transferSlots;
 
     public CheckInService(HouseholdRepository households, ShelterRepository shelters,
                           StayRepository stays, StayEventRepository events,
-                          RoomAllocator roomAllocator, IdempotencyStore idempotency) {
+                          RoomAllocator roomAllocator, IdempotencyStore idempotency,
+                          TransferActivitySlotRepository transferSlots) {
         this.households = households;
         this.shelters = shelters;
         this.stays = stays;
         this.events = events;
         this.roomAllocator = roomAllocator;
         this.idempotency = idempotency;
+        this.transferSlots = transferSlots;
     }
 
     @Transactional
@@ -100,6 +104,11 @@ public class CheckInService {
         existing = idempotency.find(request.idempotencyKey());
         if (existing.isPresent()) {
             return idempotency.replay(existing.get(), fingerprint);
+        }
+
+        if (transferSlots.existsById(request.householdNo())) {
+            throw ApiException.conflict("TRANSFER_IN_PROGRESS",
+                    "家庭已有一笔三阶段转移在申请/待交接中，请在该笔结束后再操作");
         }
 
         Stay current = stays.findByHouseholdIdAndStatus(household.getId(), StayStatus.ACTIVE)

@@ -53,6 +53,20 @@ public class MemberEvent {
     @Column(updatable = false)
     private String mergeNo;
 
+    /** 关联的转移业务号，非转移事件为 null */
+    @Column(updatable = false)
+    private String transferNo;
+
+    /** 转移目标房间信息；仅 TRANSFER 事件填充（来源房间复用 shelterId/roomId/roomNumber） */
+    @Column(updatable = false)
+    private Long toShelterId;
+
+    @Column(updatable = false)
+    private Long toRoomId;
+
+    @Column(updatable = false)
+    private Integer toRoomNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(updatable = false)
     private VerificationStatus verificationStatus;
@@ -85,6 +99,19 @@ public class MemberEvent {
         fillRoom(event, newStay);
         event.mergeNo = mergeNo;
         event.verificationStatus = VerificationStatus.VERIFIED;
+        return event;
+    }
+
+    /** 跨安置点整体转移：来源房间复用主房间字段，目标房间单列，转移不改变家庭关系 */
+    public static MemberEvent transfer(Member member, Stay originStay, Stay newStay, String transferNo) {
+        MemberEvent event = base(member, MemberEventType.TRANSFER, originStay);
+        event.toHouseholdNo = newStay.getHousehold().getHouseholdNo();
+        fillRoom(event, originStay);
+        event.toShelterId = newStay.getShelter().getId();
+        event.toRoomId = newStay.getRoom().getId();
+        event.toRoomNumber = newStay.getRoom().getRoomNumber();
+        event.transferNo = transferNo;
+        event.verificationStatus = member.getVerificationStatus();
         return event;
     }
 
@@ -156,6 +183,22 @@ public class MemberEvent {
 
     public String getMergeNo() {
         return mergeNo;
+    }
+
+    public String getTransferNo() {
+        return transferNo;
+    }
+
+    public Long getToShelterId() {
+        return toShelterId;
+    }
+
+    public Long getToRoomId() {
+        return toRoomId;
+    }
+
+    public Integer getToRoomNumber() {
+        return toRoomNumber;
     }
 
     public VerificationStatus getVerificationStatus() {

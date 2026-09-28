@@ -15,6 +15,7 @@ public record StayEventResponse(Long eventId,
                                 Integer toRoomNumber,
                                 int memberCount,
                                 String mergeNo,
+                                String transferNo,
                                 Instant occurredAt) {
 
     public static StayEventResponse of(StayEvent event) {
@@ -22,6 +23,6 @@ public record StayEventResponse(Long eventId,
                 event.getType().name(), event.getFromShelterId(), event.getFromRoomId(),
                 event.getFromRoomNumber(), event.getToShelterId(), event.getToRoomId(),
                 event.getToRoomNumber(), event.getMemberCount(), event.getMergeNo(),
-                event.getOccurredAt());
+                event.getTransferNo(), event.getOccurredAt());
     }
 }
