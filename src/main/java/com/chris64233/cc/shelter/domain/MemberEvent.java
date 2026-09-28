@@ -53,6 +53,12 @@ public class MemberEvent {
     @Column(updatable = false)
     private String mergeNo;
 
+    @Column(updatable = false)
+    private String transferNo;
+
+    @Column(updatable = false)
+    private String handoverNo;
+
     @Enumerated(EnumType.STRING)
     @Column(updatable = false)
     private VerificationStatus verificationStatus;
@@ -96,6 +102,27 @@ public class MemberEvent {
         event.roomNumber = stay.getRoom().getRoomNumber();
         event.verificationStatus = member.getVerificationStatus();
         return event;
+    }
+
+    /** 随家庭跨安置点转移到达：记录原/新房间与转移业务号、交接事件号 */
+    public static MemberEvent transferred(Member member, Stay previousStay, Stay newStay,
+                                          String transferNo, String handoverNo) {
+        MemberEvent event = base(member, MemberEventType.TRANSFERRED, newStay);
+        event.fromHouseholdNo = previousStay.getHousehold().getHouseholdNo();
+        event.toHouseholdNo = newStay.getHousehold().getHouseholdNo();
+        event.fillTransferRooms(previousStay, newStay);
+        event.transferNo = transferNo;
+        event.handoverNo = handoverNo;
+        event.verificationStatus = member.getVerificationStatus();
+        return event;
+    }
+
+    private void fillTransferRooms(Stay previousStay, Stay newStay) {
+        // shelterId/roomId/roomNumber 记录到达后的目标房间（与 MERGED 一致），
+        // 原房间通过同序号的家庭 StayEvent 的 from* 字段查询
+        this.shelterId = newStay.getShelter().getId();
+        this.roomId = newStay.getRoom().getId();
+        this.roomNumber = newStay.getRoom().getRoomNumber();
     }
 
     private static MemberEvent base(Member member, MemberEventType type, Stay stay) {
@@ -156,6 +183,14 @@ public class MemberEvent {
 
     public String getMergeNo() {
         return mergeNo;
+    }
+
+    public String getTransferNo() {
+        return transferNo;
+    }
+
+    public String getHandoverNo() {
+        return handoverNo;
     }
 
     public VerificationStatus getVerificationStatus() {

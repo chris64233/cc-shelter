@@ -11,6 +11,7 @@ import com.chris64233.cc.shelter.domain.Shelter;
 import com.chris64233.cc.shelter.domain.Stay;
 import com.chris64233.cc.shelter.domain.StayEvent;
 import com.chris64233.cc.shelter.domain.StayStatus;
+import com.chris64233.cc.shelter.domain.TransferStatus;
 import com.chris64233.cc.shelter.domain.VerificationStatus;
 import com.chris64233.cc.shelter.error.ApiException;
 import com.chris64233.cc.shelter.repo.HouseholdRepository;
@@ -20,6 +21,7 @@ import com.chris64233.cc.shelter.repo.MergeApplicationRepository;
 import com.chris64233.cc.shelter.repo.ShelterRepository;
 import com.chris64233.cc.shelter.repo.StayEventRepository;
 import com.chris64233.cc.shelter.repo.StayRepository;
+import com.chris64233.cc.shelter.repo.TransferApplicationRepository;
 import com.chris64233.cc.shelter.web.dto.ConfirmMergeRequest;
 import com.chris64233.cc.shelter.web.dto.CreateMergeRequest;
 import com.chris64233.cc.shelter.web.dto.IdempotentResponse;
@@ -46,6 +48,7 @@ public class MergeService {
     private final MemberEventRepository memberEvents;
     private final MemberRepository members;
     private final MergeApplicationRepository mergeApplications;
+    private final TransferService transferService;
     private final RoomAllocator roomAllocator;
     private final IdempotencyStore idempotency;
 
@@ -53,6 +56,7 @@ public class MergeService {
                         StayRepository stays, StayEventRepository stayEvents,
                         MemberEventRepository memberEvents, MemberRepository members,
                         MergeApplicationRepository mergeApplications,
+                        TransferService transferService,
                         RoomAllocator roomAllocator, IdempotencyStore idempotency) {
         this.households = households;
         this.shelters = shelters;
@@ -61,6 +65,7 @@ public class MergeService {
         this.memberEvents = memberEvents;
         this.members = members;
         this.mergeApplications = mergeApplications;
+        this.transferService = transferService;
         this.roomAllocator = roomAllocator;
         this.idempotency = idempotency;
     }
@@ -89,6 +94,8 @@ public class MergeService {
         Household target = byNo(locked, request.targetHouseholdNo())
                 .orElseThrow(() -> ApiException.notFound("HOUSEHOLD_NOT_FOUND",
                         "正式家庭不存在: " + request.targetHouseholdNo()));
+        // 任一参与家庭存在活动的跨安置点转移时不能发起团聚（转移冻结了成员与入住）
+        transferService.assertNoActiveTransfer(new java.util.HashSet<>(allNos));
         Stay targetStay = validateTarget(target);
         validateTemporaries(locked, tempNos, target);
 
@@ -135,6 +142,8 @@ public class MergeService {
             throw ApiException.conflict("MERGE_ALREADY_CONFIRMED",
                     "合并已确认，结果入住 ID: " + application.getResultStayId());
         }
+        // 确认前再次检查：申请创建后家庭可能又发起了活动转移
+        transferService.assertNoActiveTransfer(new java.util.HashSet<>(allNos));
 
         Household target = byNo(locked, application.getTargetHouseholdNo()).orElseThrow();
         Stay targetStay = validateTarget(target);

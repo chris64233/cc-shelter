@@ -41,11 +41,13 @@ public class TemporaryStayService {
     private final MemberEventRepository memberEvents;
     private final RoomAllocator roomAllocator;
     private final IdempotencyStore idempotency;
+    private final TransferService transferService;
 
     public TemporaryStayService(HouseholdRepository households, ShelterRepository shelters,
                                 StayRepository stays, StayEventRepository stayEvents,
                                 MemberRepository members, MemberEventRepository memberEvents,
-                                RoomAllocator roomAllocator, IdempotencyStore idempotency) {
+                                RoomAllocator roomAllocator, IdempotencyStore idempotency,
+                                TransferService transferService) {
         this.households = households;
         this.shelters = shelters;
         this.stays = stays;
@@ -54,6 +56,7 @@ public class TemporaryStayService {
         this.memberEvents = memberEvents;
         this.roomAllocator = roomAllocator;
         this.idempotency = idempotency;
+        this.transferService = transferService;
     }
 
     /** 走散成员以临时家庭身份入住：记录 UNVERIFIED 初始核验状态和临时入住成员事件 */
@@ -159,6 +162,10 @@ public class TemporaryStayService {
         if (!stay.getId().equals(request.expectedStayId())) {
             throw ApiException.conflict("STALE_STATE", "入住状态已变化，请刷新后重试");
         }
+
+        // 家庭退住时先在同一房间锁批次内取消其活动转移并释放目标预留，避免悬挂预留
+        transferService.cancelActiveForHousehold(household.getHouseholdNo(),
+                "家庭已退住，跨安置点转移申请自动取消", List.of(stay.getRoom().getId()));
 
         int size = stay.getMemberCount();
         // 家庭行锁之后再锁房间，与合并/转移保持相同加锁顺序，避免双重释放床位

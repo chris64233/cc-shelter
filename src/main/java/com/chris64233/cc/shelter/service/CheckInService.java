@@ -7,6 +7,8 @@ import com.chris64233.cc.shelter.domain.Shelter;
 import com.chris64233.cc.shelter.domain.Stay;
 import com.chris64233.cc.shelter.domain.StayEvent;
 import com.chris64233.cc.shelter.domain.StayStatus;
+import com.chris64233.cc.shelter.domain.TransferApplication;
+import com.chris64233.cc.shelter.domain.TransferStatus;
 import com.chris64233.cc.shelter.error.ApiException;
 import com.chris64233.cc.shelter.repo.HouseholdRepository;
 import com.chris64233.cc.shelter.repo.ShelterRepository;
@@ -31,16 +33,19 @@ public class CheckInService {
     private final StayEventRepository events;
     private final RoomAllocator roomAllocator;
     private final IdempotencyStore idempotency;
+    private final TransferService transferService;
 
     public CheckInService(HouseholdRepository households, ShelterRepository shelters,
                           StayRepository stays, StayEventRepository events,
-                          RoomAllocator roomAllocator, IdempotencyStore idempotency) {
+                          RoomAllocator roomAllocator, IdempotencyStore idempotency,
+                          TransferService transferService) {
         this.households = households;
         this.shelters = shelters;
         this.stays = stays;
         this.events = events;
         this.roomAllocator = roomAllocator;
         this.idempotency = idempotency;
+        this.transferService = transferService;
     }
 
     @Transactional
@@ -114,12 +119,28 @@ public class CheckInService {
                 .orElseThrow(() -> ApiException.notFound("SHELTER_NOT_FOUND", "目标安置点不存在: " + request.targetShelterId()));
 
         int size = household.stayingMemberCount();
-        // 目标房间与原房间按主键统一顺序加锁，再在锁内复核容量；
+        // 即时转移与两阶段转移互斥：若家庭存在活动的两阶段转移，在同事务内取消并释放目标预留。
+        // 把待释放的预留房间并入本次房间锁批次（按主键升序）与容量计算，
+        // 与并发到达确认使用完全相同的锁序，且不会因预留尚未释放而误判目标房间不足。
+        List<TransferApplication> activeTransfers = transferService.activeTransfersOf(request.householdNo());
+        java.util.Map<Long, Integer> releasing = new java.util.LinkedHashMap<>();
+        java.util.Set<Long> extraLockIds = new java.util.TreeSet<>();
+        extraLockIds.add(current.getRoom().getId());
+        for (TransferApplication active : activeTransfers) {
+            if (active.getStatus() == TransferStatus.ACCEPTED && active.getReservedRoomId() != null
+                    && active.getTargetShelterId().equals(target.getId())) {
+                releasing.merge(active.getReservedRoomId(), active.getRequiredBedCount(), Integer::sum);
+                extraLockIds.add(active.getReservedRoomId());
+            }
+        }
+        // 目标房间与原房间（含待释放的预留房间）按主键统一顺序加锁，再在锁内复核容量；
         // 目标不足时抛错回滚，原入住完整保留，也不会与并发事务形成锁序倒置
         Room targetRoom = roomAllocator
                 .allocate(target.getId(), size, household.needsAccessibleRoom(),
-                        java.util.Map.of(), List.of(current.getRoom().getId()))
+                        releasing, extraLockIds)
                 .orElseThrow(() -> ApiException.conflict("NO_SUITABLE_ROOM", "目标安置点没有满足容量和无障碍条件的房间"));
+        transferService.cancelActiveForHousehold(request.householdNo(),
+                "家庭执行了即时整体转移，原两阶段转移申请自动取消", extraLockIds);
         Room originRoom = current.getRoom();
 
         originRoom.setOccupied(originRoom.getOccupied() - size);

@@ -3,6 +3,7 @@ package com.chris64233.cc.shelter.web;
 import com.chris64233.cc.shelter.domain.Household;
 import com.chris64233.cc.shelter.service.QueryService;
 import com.chris64233.cc.shelter.service.RegistrationService;
+import com.chris64233.cc.shelter.service.TransferService;
 import com.chris64233.cc.shelter.web.dto.HouseholdResponse;
 import com.chris64233.cc.shelter.web.dto.MemberEventResponse;
 import com.chris64233.cc.shelter.web.dto.RegisterHouseholdRequest;
@@ -27,10 +28,13 @@ public class HouseholdController {
 
     private final RegistrationService registrationService;
     private final QueryService queryService;
+    private final TransferService transferService;
 
-    public HouseholdController(RegistrationService registrationService, QueryService queryService) {
+    public HouseholdController(RegistrationService registrationService, QueryService queryService,
+                               TransferService transferService) {
         this.registrationService = registrationService;
         this.queryService = queryService;
+        this.transferService = transferService;
     }
 
     @PostMapping
@@ -66,6 +70,12 @@ public class HouseholdController {
     @GetMapping("/{householdNo}/events")
     public List<StayEventResponse> events(@PathVariable String householdNo) {
         return queryService.eventsOf(householdNo);
+    }
+
+    /** 跨安置点入住时间线：入住/转移/合并/退住事件按时间排列，含两端安置点与房间 */
+    @GetMapping("/{householdNo}/timeline")
+    public List<Map<String, Object>> timeline(@PathVariable String householdNo) {
+        return transferService.stayTimeline(householdNo);
     }
 
     @GetMapping("/members/{identityNo}/events")

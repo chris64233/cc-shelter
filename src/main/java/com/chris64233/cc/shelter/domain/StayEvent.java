@@ -57,6 +57,14 @@ public class StayEvent {
     @Column(updatable = false)
     private String mergeNo;
 
+    /** 关联的跨安置点转移业务号（即时转移为 null，两阶段交接转移为申请业务号） */
+    @Column(updatable = false)
+    private String transferNo;
+
+    /** 关联的交接事件号，仅两阶段转移的到达确认事件非空 */
+    @Column(updatable = false)
+    private String handoverNo;
+
     @Column(nullable = false, updatable = false)
     private Instant occurredAt;
 
@@ -73,6 +81,15 @@ public class StayEvent {
         StayEvent event = base(newStay, StayEventType.TRANSFER);
         fillFrom(event, previousStay);
         fillTo(event, newStay);
+        return event;
+    }
+
+    /** 两阶段跨安置点转移的到达确认事件：带转移业务号与交接事件号 */
+    public static StayEvent transferArrived(Stay newStay, Stay previousStay,
+                                            String transferNo, String handoverNo) {
+        StayEvent event = transfer(newStay, previousStay);
+        event.transferNo = transferNo;
+        event.handoverNo = handoverNo;
         return event;
     }
 
@@ -170,6 +187,14 @@ public class StayEvent {
 
     public String getMergeNo() {
         return mergeNo;
+    }
+
+    public String getTransferNo() {
+        return transferNo;
+    }
+
+    public String getHandoverNo() {
+        return handoverNo;
     }
 
     public Instant getOccurredAt() {

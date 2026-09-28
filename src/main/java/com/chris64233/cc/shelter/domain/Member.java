@@ -68,6 +68,11 @@ public class Member {
         this.verificationStatus = VerificationStatus.VERIFIED;
     }
 
+    /** 测试/数据修复场景：把成员核验状态回退为未确认，业务流程不会调用 */
+    public void markUnverified() {
+        this.verificationStatus = VerificationStatus.UNVERIFIED;
+    }
+
     public void markDeparted() {
         this.departedAt = Instant.now();
     }

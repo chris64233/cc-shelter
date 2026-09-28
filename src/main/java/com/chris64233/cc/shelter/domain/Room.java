@@ -35,6 +35,14 @@ public class Room {
     @Column(nullable = false)
     private int occupied;
 
+    /**
+     * 已被活动转移申请预留、家庭尚未到达的床位数。
+     * 预留与实际占用相互独立：接受转移只增加预留，到达确认时把预留转为占用；
+     * 普通入住选房时必须把预留床位视为不可用，防止提前吃掉已承诺给转移家庭的床位。
+     */
+    @Column(name = "reserved_beds", nullable = false)
+    private int reservedBeds;
+
     protected Room() {
     }
 
@@ -44,10 +52,16 @@ public class Room {
         this.bedCount = bedCount;
         this.accessible = accessible;
         this.occupied = 0;
+        this.reservedBeds = 0;
     }
 
     public int remainingBeds() {
         return bedCount - occupied;
+    }
+
+    /** 扣掉已实际占用和已预留后的可分配床位 */
+    public int availableBeds() {
+        return bedCount - occupied - reservedBeds;
     }
 
     public Long getId() {
@@ -76,5 +90,13 @@ public class Room {
 
     public void setOccupied(int occupied) {
         this.occupied = occupied;
+    }
+
+    public int getReservedBeds() {
+        return reservedBeds;
+    }
+
+    public void setReservedBeds(int reservedBeds) {
+        this.reservedBeds = reservedBeds;
     }
 }
